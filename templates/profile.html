@@ -263,6 +263,94 @@
         font-variant-numeric: tabular-nums;
     }
 
+    /* ---- Filter bar ---- */
+    .filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .filter-presets {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .filter-preset {
+        padding: 0.35rem 0.85rem;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        color: var(--ink-muted);
+        font-size: 0.85rem;
+        text-decoration: none;
+        background: transparent;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .filter-preset:hover,
+    .filter-preset.active {
+        background: var(--accent-light);
+        color: var(--accent);
+        border-color: var(--accent);
+    }
+
+    .filter-custom {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .filter-custom span {
+        font-size: 0.85rem;
+        color: var(--ink-muted);
+    }
+
+    .filter-custom input[type="date"] {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 0.3rem 0.6rem;
+        font-family: var(--font-body);
+        color: var(--ink);
+        background: var(--paper-card);
+        font-size: 0.85rem;
+    }
+
+    .filter-apply {
+        padding: 0.35rem 0.85rem;
+        border-radius: var(--radius-sm);
+        background: var(--accent);
+        color: white;
+        border: none;
+        font-family: var(--font-body);
+        cursor: pointer;
+        font-size: 0.85rem;
+    }
+
+    .filter-apply:hover { opacity: 0.88; }
+
+    .filter-active-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: var(--accent-light);
+        color: var(--accent);
+        border: 1px solid var(--accent);
+        border-radius: var(--radius-sm);
+        padding: 0.35rem 0.85rem;
+        font-size: 0.82rem;
+    }
+
+    .filter-active-badge a {
+        color: var(--accent);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .filter-active-badge a:hover { text-decoration: underline; }
+
     /* ---- Responsive ---- */
     @media (max-width: 900px) {
         .profile-lower-grid {
@@ -278,6 +366,11 @@
         .profile-header-card {
             flex-direction: column;
             text-align: center;
+        }
+
+        .filter-bar {
+            flex-direction: column;
+            align-items: flex-start;
         }
     }
 </style>
@@ -297,6 +390,34 @@
         </div>
     </div>
 
+    <!-- Filter bar -->
+    <div class="profile-card filter-bar">
+        <div class="filter-presets">
+            <a href="{{ url_for('profile') }}"
+               class="filter-preset{% if not active_preset and not date_from and not date_to %} active{% endif %}">All Time</a>
+            {% set preset_labels = {"this_month": "This Month", "last_3_months": "Last 3 Months", "last_6_months": "Last 6 Months"} %}
+            {% for key, p in presets.items() %}
+            <a href="{{ url_for('profile', date_from=p.date_from, date_to=p.date_to) }}"
+               class="filter-preset{% if active_preset == key %} active{% endif %}">
+                {{ preset_labels[key] }}
+            </a>
+            {% endfor %}
+        </div>
+        <form method="GET" action="{{ url_for('profile') }}" class="filter-custom">
+            <input type="date" name="date_from" value="{{ date_from or '' }}">
+            <span>to</span>
+            <input type="date" name="date_to" value="{{ date_to or '' }}">
+            <button type="submit" class="filter-apply">Apply</button>
+        </form>
+    </div>
+
+    {% if date_from or date_to %}
+    <div class="filter-active-badge">
+        Filtered: {{ date_from or '…' }} → {{ date_to or 'today' }}
+        <a href="{{ url_for('profile') }}">Clear ×</a>
+    </div>
+    {% endif %}
+
     <!-- Section 2: Stats row -->
     <div class="profile-stats-grid">
 
@@ -306,7 +427,7 @@
                 <span class="stat-label">Total Spent</span>
             </div>
             <div class="stat-value">{{ stats.total_spent }}</div>
-            <div class="stat-sub">This month</div>
+            <div class="stat-sub">{% if date_from or date_to %}Selected period{% else %}All time{% endif %}</div>
         </div>
 
         <div class="profile-stat-card">
