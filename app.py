@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from database.db import get_db, init_db, seed_db
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -95,6 +96,72 @@ def privacy():
     return render_template("privacy.html")
 
 
+def _build_transactions(user_id):
+    db = get_db()
+    rows = db.execute(
+        "SELECT date, description, category, amount "
+        "FROM expenses WHERE user_id = ? ORDER BY date DESC",
+        (user_id,),
+    ).fetchall()
+    db.close()
+    return [
+        {
+            "date": datetime.strptime(r["date"], "%Y-%m-%d").strftime("%b %d"),
+            "description": r["description"] or "",
+            "category": r["category"],
+            "amount": f"₹{r['amount']:.2f}",
+        }
+        for r in rows
+    ]
+
+
+def _build_stats(user_id):
+    db = get_db()
+    rows = db.execute(
+        "SELECT amount, category FROM expenses WHERE user_id = ?",
+        (user_id,),
+    ).fetchall()
+    db.close()
+    if not rows:
+        return {"total_spent": "₹0.00", "transaction_count": 0, "top_category": "—"}
+    total = sum(r["amount"] for r in rows)
+    cat_totals = {}
+    for r in rows:
+        cat_totals[r["category"]] = cat_totals.get(r["category"], 0) + r["amount"]
+    top_category = max(cat_totals, key=cat_totals.get)
+    return {
+        "total_spent": f"₹{total:.2f}",
+        "transaction_count": len(rows),
+        "top_category": top_category,
+    }
+
+
+def _build_categories(user_id):
+    db = get_db()
+    rows = db.execute(
+        "SELECT category, amount FROM expenses WHERE user_id = ?",
+        (user_id,),
+    ).fetchall()
+    db.close()
+    cat_totals = {}
+    for r in rows:
+        cat_totals[r["category"]] = cat_totals.get(r["category"], 0) + r["amount"]
+    total = sum(cat_totals.values())
+    if total == 0:
+        return []
+    return sorted(
+        [
+            {
+                "name": cat,
+                "amount": f"₹{amt:.2f}",
+                "pct": round(amt / total * 100),
+            }
+            for cat, amt in cat_totals.items()
+        ],
+        key=lambda x: -cat_totals[x["name"]],
+    )
+
+
 # ------------------------------------------------------------------ #
 # Placeholder routes — students will implement these                  #
 # ------------------------------------------------------------------ #
@@ -109,34 +176,22 @@ def logout():
 def profile():
     if not session.get("user_id"):
         return redirect(url_for("login"))
+    user_id = session["user_id"]
+    db = get_db()
+    user_row = db.execute(
+        "SELECT name, email, created_at FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    db.close()
     user = {
-        "name": session.get("user_name", "Demo User"),
-        "email": "demo@spendly.com",
-        "member_since": "January 1, 2026",
+        "name": user_row["name"],
+        "email": user_row["email"],
+        "member_since": datetime.strptime(
+            user_row["created_at"][:19], "%Y-%m-%d %H:%M:%S"
+        ).strftime("%B %d, %Y"),
     }
-    stats = {
-        "total_spent": "₹328.24",
-        "transaction_count": 8,
-        "top_category": "Bills",
-    }
-    transactions = [
-        {"date": "May 14", "description": "Groceries",       "category": "Food",          "amount": "₹22.75"},
-        {"date": "May 12", "description": "Clothing",         "category": "Shopping",      "amount": "₹65.00"},
-        {"date": "May 10", "description": "Movie ticket",     "category": "Entertainment", "amount": "₹18.00"},
-        {"date": "May 7",  "description": "Pharmacy",         "category": "Health",        "amount": "₹35.00"},
-        {"date": "May 5",  "description": "Electricity bill", "category": "Bills",         "amount": "₹120.00"},
-        {"date": "May 3",  "description": "Monthly bus pass", "category": "Transport",     "amount": "₹45.00"},
-        {"date": "May 1",  "description": "Lunch at cafe",    "category": "Food",          "amount": "₹12.50"},
-    ]
-    categories = [
-        {"name": "Bills",         "amount": "₹120.00", "pct": 37},
-        {"name": "Shopping",      "amount": "₹65.00",  "pct": 20},
-        {"name": "Transport",     "amount": "₹45.00",  "pct": 14},
-        {"name": "Food",          "amount": "₹35.25",  "pct": 11},
-        {"name": "Health",        "amount": "₹35.00",  "pct": 11},
-        {"name": "Entertainment", "amount": "₹18.00",  "pct": 5},
-        {"name": "Other",         "amount": "₹9.99",   "pct": 3},
-    ]
+    stats = _build_stats(user_id)
+    transactions = _build_transactions(user_id)
+    categories = _build_categories(user_id)
     return render_template("profile.html",
         user=user, stats=stats,
         transactions=transactions, categories=categories)
@@ -147,13 +202,13 @@ def add_expense():
     return "Add expense — coming in Step 7"
 
 
-@app.route("/expenses/<int:id>/edit")
-def edit_expense(id):
+@app.route("/expenses/<int:_expense_id>/edit")
+def edit_expense(_expense_id):
     return "Edit expense — coming in Step 8"
 
 
-@app.route("/expenses/<int:id>/delete")
-def delete_expense(id):
+@app.route("/expenses/<int:_expense_id>/delete")
+def delete_expense(_expense_id):
     return "Delete expense — coming in Step 9"
 
 
