@@ -1,11 +1,12 @@
+import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, date as date_type
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from database.db import get_db, init_db, seed_db
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "spendly-dev-secret"
+app.secret_key = os.environ.get("SECRET_KEY", "spendly-dev-secret")
 
 with app.app_context():
     init_db()
@@ -96,12 +97,23 @@ def privacy():
     return render_template("privacy.html")
 
 
-def _build_transactions(user_id):
+def _date_filter_clause(date_from, date_to):
+    if date_from and date_to:
+        return "AND date BETWEEN ? AND ?", (date_from, date_to)
+    if date_from:
+        return "AND date >= ?", (date_from,)
+    if date_to:
+        return "AND date <= ?", (date_to,)
+    return "", ()
+
+
+def _build_transactions(user_id, date_from=None, date_to=None):
+    clause, params = _date_filter_clause(date_from, date_to)
     db = get_db()
     rows = db.execute(
-        "SELECT date, description, category, amount "
-        "FROM expenses WHERE user_id = ? ORDER BY date DESC",
-        (user_id,),
+        f"SELECT date, description, category, amount "
+        f"FROM expenses WHERE user_id = ? {clause} ORDER BY date DESC",
+        (user_id, *params),
     ).fetchall()
     db.close()
     return [
@@ -115,11 +127,12 @@ def _build_transactions(user_id):
     ]
 
 
-def _build_stats(user_id):
+def _build_stats(user_id, date_from=None, date_to=None):
+    clause, params = _date_filter_clause(date_from, date_to)
     db = get_db()
     rows = db.execute(
-        "SELECT amount, category FROM expenses WHERE user_id = ?",
-        (user_id,),
+        f"SELECT amount, category FROM expenses WHERE user_id = ? {clause}",
+        (user_id, *params),
     ).fetchall()
     db.close()
     if not rows:
@@ -136,11 +149,12 @@ def _build_stats(user_id):
     }
 
 
-def _build_categories(user_id):
+def _build_categories(user_id, date_from=None, date_to=None):
+    clause, params = _date_filter_clause(date_from, date_to)
     db = get_db()
     rows = db.execute(
-        "SELECT category, amount FROM expenses WHERE user_id = ?",
-        (user_id,),
+        f"SELECT category, amount FROM expenses WHERE user_id = ? {clause}",
+        (user_id, *params),
     ).fetchall()
     db.close()
     cat_totals = {}
@@ -160,6 +174,23 @@ def _build_categories(user_id):
         ],
         key=lambda x: -cat_totals[x["name"]],
     )
+
+
+def _parse_date(value):
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+        return value
+    except (ValueError, TypeError):
+        return None
+
+
+def _start_of_last_n_months(today, n):
+    m = today.month - n + 1
+    y = today.year
+    while m <= 0:
+        m += 12
+        y -= 1
+    return date_type(y, m, 1).isoformat()
 
 
 # ------------------------------------------------------------------ #
@@ -189,12 +220,35 @@ def profile():
             user_row["created_at"][:19], "%Y-%m-%d %H:%M:%S"
         ).strftime("%B %d, %Y"),
     }
-    stats = _build_stats(user_id)
-    transactions = _build_transactions(user_id)
-    categories = _build_categories(user_id)
+
+    date_from = _parse_date(request.args.get("date_from", ""))
+    date_to = _parse_date(request.args.get("date_to", ""))
+
+    if date_from and date_to and date_from > date_to:
+        flash("Start date must be before end date.")
+        date_from = date_to = None
+
+    today = date_type.today()
+    presets = {
+        "this_month":    {"date_from": today.replace(day=1).isoformat(), "date_to": today.isoformat()},
+        "last_3_months": {"date_from": _start_of_last_n_months(today, 3), "date_to": today.isoformat()},
+        "last_6_months": {"date_from": _start_of_last_n_months(today, 6), "date_to": today.isoformat()},
+    }
+
+    active_preset = None
+    for key, p in presets.items():
+        if date_from == p["date_from"] and date_to == p["date_to"]:
+            active_preset = key
+            break
+
+    stats = _build_stats(user_id, date_from, date_to)
+    transactions = _build_transactions(user_id, date_from, date_to)
+    categories = _build_categories(user_id, date_from, date_to)
     return render_template("profile.html",
         user=user, stats=stats,
-        transactions=transactions, categories=categories)
+        transactions=transactions, categories=categories,
+        date_from=date_from, date_to=date_to,
+        presets=presets, active_preset=active_preset)
 
 
 @app.route("/expenses/add")
@@ -213,4 +267,4 @@ def delete_expense(_expense_id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    app.run(debug=os.environ.get("FLASK_DEBUG", "0") == "1", port=5001)
