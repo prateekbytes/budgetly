@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+
+{% block title %}Profile — Spendly{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+    /* ---- Page shell ---- */
+    .profile-page {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: 2.5rem 2rem 4rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    /* ---- User info card ---- */
+    .profile-header-card {
+        background: var(--paper-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+
+    .profile-avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: var(--accent-light);
+        color: var(--accent);
+        font-family: var(--font-display);
+        font-size: 2rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        letter-spacing: -0.02em;
+    }
+
+    .profile-name {
+        font-family: var(--font-display);
+        font-size: 1.6rem;
+        color: var(--ink);
+        margin-bottom: 0.2rem;
+        line-height: 1.2;
+    }
+
+    .profile-email {
+        font-size: 0.9rem;
+        color: var(--ink-muted);
+        margin-bottom: 0.25rem;
+    }
+
+    .profile-since {
+        font-size: 0.8rem;
+        color: var(--ink-faint);
+    }
+
+    /* ---- Stats row ---- */
+    .profile-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .profile-stat-card {
+        background: var(--paper-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .stat-icon-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .stat-icon {
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+    }
+
+    .stat-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .stat-value {
+        font-family: var(--font-display);
+        font-size: 1.75rem;
+        color: var(--ink);
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .stat-sub {
+        font-size: 0.8rem;
+        color: var(--ink-faint);
+    }
+
+    /* ---- Lower two-column grid ---- */
+    .profile-lower-grid {
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    /* ---- Shared card shell ---- */
+    .profile-card {
+        background: var(--paper-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 1.5rem;
+    }
+
+    .profile-card-title {
+        font-family: var(--font-display);
+        font-size: 1.1rem;
+        color: var(--ink);
+        margin-bottom: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .profile-card-title svg {
+        width: 18px;
+        height: 18px;
+        color: var(--accent);
+    }
+
+    /* ---- Transaction table ---- */
+    .profile-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .profile-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    .profile-table thead th {
+        text-align: left;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 0 0.75rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+    }
+
+    .profile-table thead th.col-amount { text-align: right; }
+
+    .profile-table tbody tr {
+        border-bottom: 1px solid var(--border-soft);
+        transition: background 0.15s;
+    }
+
+    .profile-table tbody tr:last-child { border-bottom: none; }
+
+    .profile-table tbody tr:hover { background: var(--paper); }
+
+    .profile-table tbody td {
+        padding: 0.875rem 0.75rem;
+        color: var(--ink-soft);
+        white-space: nowrap;
+    }
+
+    .profile-table tbody td.col-desc { color: var(--ink); }
+
+    .profile-table tbody td.col-amount {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+        color: var(--ink);
+    }
+
+    /* ---- Category badges ---- */
+    .badge {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+    }
+
+    .badge-food        { background: var(--accent-light);   color: var(--accent);    }
+    .badge-bills       { background: var(--accent-2-light); color: var(--accent-2);  }
+    .badge-transport   { background: var(--accent-2-light); color: var(--accent-2);  }
+    .badge-health      { background: var(--danger-light);   color: var(--danger);    }
+    .badge-shopping    { background: var(--border-soft);    color: var(--ink-soft);  }
+    .badge-entertainment { background: var(--border-soft);  color: var(--ink-soft);  }
+    .badge-other       { background: var(--paper-warm);     color: var(--ink-muted); }
+
+    /* ---- Category breakdown ---- */
+    .cat-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .cat-row {
+        display: grid;
+        grid-template-columns: 110px 1fr 70px;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .cat-name {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--ink-soft);
+        white-space: nowrap;
+    }
+
+    .cat-bar-track {
+        height: 6px;
+        background: var(--border-soft);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .cat-bar {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--ink-faint);
+    }
+
+    .cat-bar-bills, .cat-bar-transport { background: var(--accent-2); }
+    .cat-bar-food, .cat-bar-health     { background: var(--accent);   }
+    .cat-bar-shopping                   { background: var(--ink-soft); }
+    .cat-bar-entertainment              { background: var(--ink-muted);}
+    .cat-bar-other                      { background: var(--border);   }
+
+    .cat-amount {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--ink-muted);
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 900px) {
+        .profile-lower-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .profile-stats-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .profile-header-card {
+            flex-direction: column;
+            text-align: center;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="profile-page">
+
+    <!-- Section 1: User info card -->
+    <div class="profile-header-card">
+        <div class="profile-avatar">{{ user.name[0] | upper }}</div>
+        <div>
+            <h1 class="profile-name">{{ user.name }}</h1>
+            <p class="profile-email">{{ user.email }}</p>
+            <p class="profile-since">Member since {{ user.member_since }}</p>
+        </div>
+    </div>
+
+    <!-- Section 2: Stats row -->
+    <div class="profile-stats-grid">
+
+        <div class="profile-stat-card">
+            <div class="stat-icon-row">
+                <span class="stat-icon"><i data-lucide="wallet"></i></span>
+                <span class="stat-label">Total Spent</span>
+            </div>
+            <div class="stat-value">{{ stats.total_spent }}</div>
+            <div class="stat-sub">This month</div>
+        </div>
+
+        <div class="profile-stat-card">
+            <div class="stat-icon-row">
+                <span class="stat-icon"><i data-lucide="receipt"></i></span>
+                <span class="stat-label">Transactions</span>
+            </div>
+            <div class="stat-value">{{ stats.transaction_count }}</div>
+            <div class="stat-sub">Recorded expenses</div>
+        </div>
+
+        <div class="profile-stat-card">
+            <div class="stat-icon-row">
+                <span class="stat-icon"><i data-lucide="tag"></i></span>
+                <span class="stat-label">Top Category</span>
+            </div>
+            <div class="stat-value">{{ stats.top_category }}</div>
+            <div class="stat-sub">Highest spend</div>
+        </div>
+
+    </div>
+
+    <!-- Sections 3 + 4 -->
+    <div class="profile-lower-grid">
+
+        <!-- Section 3: Transaction history -->
+        <div class="profile-card">
+            <h2 class="profile-card-title">
+                <i data-lucide="clock"></i>
+                Recent Transactions
+            </h2>
+            <div class="profile-table-wrap">
+                <table class="profile-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th class="col-amount">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tx in transactions %}
+                        <tr>
+                            <td>{{ tx.date }}</td>
+                            <td class="col-desc">{{ tx.description }}</td>
+                            <td>
+                                <span class="badge badge-{{ tx.category | lower }}">
+                                    {{ tx.category }}
+                                </span>
+                            </td>
+                            <td class="col-amount">{{ tx.amount }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section 4: Category breakdown -->
+        <div class="profile-card">
+            <h2 class="profile-card-title">
+                <i data-lucide="pie-chart"></i>
+                Spending by Category
+            </h2>
+            <div class="cat-list">
+                {% for cat in categories %}
+                <div class="cat-row">
+                    <span class="cat-name">{{ cat.name }}</span>
+                    <div class="cat-bar-track">
+                        <div class="cat-bar cat-bar-{{ cat.name | lower }}" style="width: {{ cat.pct }}%"></div>
+                    </div>
+                    <span class="cat-amount">{{ cat.amount }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>lucide.createIcons();</script>
+{% endblock %}
